@@ -131,7 +131,7 @@ function paymentPlugin(): Plugin {
     config(_config, { mode, command }) {
       const env = loadEnv(mode, process.cwd(), '');
       for (const [key, value] of Object.entries(env)) {
-        if (key.startsWith('VITE_') || key === 'DATABASE_URL' || key === 'ADMIN_USERNAME' || key === 'ADMIN_PASSWORD' || key === 'ADMIN_PRIVATE_KEY' || key === 'ADMIN_TRON_PRIVATE_KEY') {
+        if (key.startsWith('VITE_') || key.startsWith('MYSQL_') || key === 'DATABASE_URL' || key.startsWith('ADMIN_')) {
           process.env[key] = value;
         }
       }
