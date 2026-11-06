@@ -29,6 +29,8 @@ export function loadDotEnv(filePath: string): void {
 }
 
 // Auto-load .env when pgPool is imported (e.g. during npm run db:setup or scripts)
+loadDotEnv(path.join(process.cwd(), '.env'));
+loadDotEnv(path.join(process.cwd(), '.env.production'));
 loadDotEnv(path.join(ROOT, '.env'));
 loadDotEnv(path.join(ROOT, '.env.production'));
 
@@ -36,8 +38,25 @@ let pool: mysql.Pool | null = null;
 let _connected = false;
 let _failed = false;
 
+function shouldEnableSsl(host?: string, rawUrl?: string): boolean {
+  if (process.env.MYSQL_SSL === 'true' || process.env.MYSQL_SSL === '1') return true;
+  if (process.env.MYSQL_SSL === 'false' || process.env.MYSQL_SSL === '0') return false;
+  const target = `${host || ''} ${rawUrl || ''}`.toLowerCase();
+  return (
+    target.includes('aivencloud.com') ||
+    target.includes('planetscale') ||
+    target.includes('clever-cloud') ||
+    target.includes('aws') ||
+    target.includes('azure') ||
+    target.includes('ssl-mode') ||
+    target.includes('ssl=true')
+  );
+}
+
 function buildConfig(): mysql.PoolOptions | null {
   // Ensure env is fresh
+  loadDotEnv(path.join(process.cwd(), '.env'));
+  loadDotEnv(path.join(process.cwd(), '.env.production'));
   loadDotEnv(path.join(ROOT, '.env'));
   loadDotEnv(path.join(ROOT, '.env.production'));
 
@@ -45,6 +64,7 @@ function buildConfig(): mysql.PoolOptions | null {
 
   if (url.startsWith('mysql://') || url.startsWith('mysql2://')) {
     const parsed = new URL(url.replace(/^mysql2:\/\//, 'mysql://'));
+    const useSsl = shouldEnableSsl(parsed.hostname, url);
     return {
       host: parsed.hostname,
       port: parsed.port ? parseInt(parsed.port) : 3306,
@@ -53,17 +73,19 @@ function buildConfig(): mysql.PoolOptions | null {
       database: parsed.pathname.slice(1),
       waitForConnections: true,
       connectionLimit: 10,
-      connectTimeout: 5000,
+      connectTimeout: 10000,
+      ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {}),
     };
   }
 
-  // Fallback: individual env vars (common on cPanel)
+  // Fallback: individual env vars (common on cPanel / Aiven / .env)
   const host = process.env.MYSQL_HOST?.trim();
   const user = process.env.MYSQL_USER?.trim();
   const password = process.env.MYSQL_PASSWORD?.trim();
   const database = (process.env.MYSQL_DB || process.env.MYSQL_DATABASE)?.trim();
 
   if (host && user && database) {
+    const useSsl = shouldEnableSsl(host);
     return {
       host,
       port: process.env.MYSQL_PORT ? parseInt(process.env.MYSQL_PORT.trim()) : 3306,
@@ -72,7 +94,8 @@ function buildConfig(): mysql.PoolOptions | null {
       database,
       waitForConnections: true,
       connectionLimit: 10,
-      connectTimeout: 5000,
+      connectTimeout: 10000,
+      ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {}),
     };
   }
 
