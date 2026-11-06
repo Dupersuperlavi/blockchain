@@ -68,7 +68,13 @@ function errorResponse(res: import('node:http').ServerResponse, message: string,
   jsonResponse(res, { error: message }, status);
 }
 
-async function readBody(req: import('node:http').IncomingMessage): Promise<Record<string, unknown>> {
+async function readBody(req: import('node:http').IncomingMessage & { body?: unknown }): Promise<Record<string, unknown>> {
+  if (req.body) {
+    if (typeof req.body === 'object' && req.body !== null) return req.body as Record<string, unknown>;
+    if (typeof req.body === 'string') {
+      try { return JSON.parse(req.body); } catch { return {}; }
+    }
+  }
   return new Promise((resolve) => {
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
