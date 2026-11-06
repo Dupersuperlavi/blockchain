@@ -1,0 +1,61 @@
+# ─── cPanel / Apache Configuration ───────────────────────────────────────────
+# ZenithBlockchain Production .htaccess
+
+# Disable directory listing
+Options -Indexes
+
+# ── 1. Security: Block sensitive files and directories ─────────────────────────
+<FilesMatch "^\.env|\.git|package\.json|package-lock\.json|tsconfig.*\.json|README\.md|.*\.sql$|.*\.sh$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Block hidden files (except .well-known for SSL certificates)
+RewriteEngine On
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteRule (^\.|/\.) - [F]
+
+# ── 2. Force HTTPS (Required for Web3 & WalletConnect) ────────────────────────
+RewriteCond %{HTTPS} off
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# ── 3. MIME Types & Compression ───────────────────────────────────────────────
+<IfModule mod_mime.c>
+    AddType application/javascript .js .mjs
+    AddType text/css .css
+    AddType image/svg+xml .svg
+    AddType font/woff .woff
+    AddType font/woff2 .woff2
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain text/html text/xml text/css application/xml application/xhtml+xml application/rss+xml application/javascript application/x-javascript application/json image/svg+xml
+</IfModule>
+
+# ── 4. Static Asset Caching (dist/assets/ have content hashes) ─────────────────
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/html "access plus 0 seconds"
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
+
+# ── Note for cPanel Phusion Passenger ─────────────────────────────────────────
+# When you create the Node.js application in cPanel ("Setup Node.js App"),
+# cPanel will automatically append its CloudLinux Passenger directives:
+#
+# PassengerAppRoot "/home/username/your_app"
+# PassengerBaseURI "/"
+# PassengerNodejs "/home/username/nodevenv/your_app/20/bin/node"
+# PassengerAppType node
+# PassengerStartupFile app.js
